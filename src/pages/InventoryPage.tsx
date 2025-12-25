@@ -1,29 +1,45 @@
 import { useMemo, useState } from "react";
 import { getValueBySteamId } from "../api/value";
-import type { ValueItem } from "../api/value";
-
+import type { ValueGroup } from "../api/value";
 
 function formatMoney(x: number) {
   if (!Number.isFinite(x)) return "-";
   return x.toFixed(2);
 }
 
+// Steam image upscale helper
+function getSteamImage(url: string | null) {
+  if (!url) return null;
+
+  // already sized
+  if (url.includes("/360fx360f")) return url;
+
+  // standard steam economy image
+  if (url.includes("/economy/image/")) {
+    return `${url}/360fx360f`;
+  }
+
+  return url;
+}
+
 export default function InventoryPage() {
   const [steamId, setSteamId] = useState("");
-  const [items, setItems] = useState<ValueItem[]>([]);
+  const [items, setItems] = useState<ValueGroup[]>([]);
   const [total, setTotal] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const rows = useMemo(() => {
-    return items.map((it) => {
-      const name = it.market_hash_name ?? it.name ?? "Unknown item";
-      const amount = Number(it.amount ?? it.count ?? 1) || 1;
-      const unit = Number(it.unit_price ?? it.price ?? 0) || 0;
-      const group = Number(it.group_price ?? it.total ?? 0) || (amount * unit);
+    return items.map((g) => {
+      const name = g.market_hash_name ?? "Unknown item";
+      const amount = Number(g.total_amount ?? 0) || 0;
 
-      const img = it.image ?? it.icon_url ?? null;
+      const unit = Number(g.unit_price ?? g.price ?? 0) || 0;
+      const group =
+        Number(g.group_price ?? g.total ?? 0) || amount * unit;
+
+      const img = getSteamImage(g.sample_icon_url ?? null);
 
       return { name, amount, unit, group, img };
     });
@@ -57,8 +73,18 @@ export default function InventoryPage() {
     <div>
       <h1 style={{ color: "#fff", margin: "0 0 12px" }}>Inventory</h1>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
         <input
+          id="steamId"
+          name="steamId"
+          autoComplete="off"
           value={steamId}
           onChange={(e) => setSteamId(e.target.value)}
           placeholder="SteamID (e.g. 7656119...)"
@@ -79,7 +105,9 @@ export default function InventoryPage() {
           style={{
             borderRadius: 10,
             border: "1px solid rgba(255,255,255,0.15)",
-            background: loading ? "rgba(255,255,255,0.08)" : "rgba(59,130,246,0.8)",
+            background: loading
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(59,130,246,0.8)",
             color: "#fff",
             padding: "10px 12px",
             cursor: loading ? "not-allowed" : "pointer",
@@ -89,7 +117,8 @@ export default function InventoryPage() {
         </button>
 
         <div style={{ marginLeft: "auto", color: "rgba(255,255,255,0.85)" }}>
-          <b>Total:</b> {formatMoney(total)}
+          <b>Items:</b> {items.length} &nbsp; | &nbsp; <b>Total:</b>{" "}
+          {formatMoney(total)}
         </div>
       </div>
 
@@ -108,12 +137,18 @@ export default function InventoryPage() {
         </div>
       )}
 
-      <div style={{ overflowX: "auto", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }}>
+      <div
+        style={{
+          overflowX: "auto",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
+        }}
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "rgba(255,255,255,0.06)" }}>
               <th style={th}>Photo</th>
-              <th style={th}>Name (market_hash_name)</th>
+              <th style={th}>Name</th>
               <th style={thRight}>Amount</th>
               <th style={thRight}>Unit price</th>
               <th style={thRight}>Group price</th>
@@ -124,29 +159,41 @@ export default function InventoryPage() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ ...td, color: "rgba(255,255,255,0.7)" }}>
-                  No items yet. Enter SteamID and click Fetch.
+                  No items yet.
                 </td>
               </tr>
             ) : (
               rows.map((r, idx) => (
-                <tr key={`${r.name}-${idx}`} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <tr
+                  key={`${r.name}-${idx}`}
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                >
                   <td style={td}>
-                    {r.img ? (
-                      <img
-                        src={r.img}
-                        alt={r.name}
-                        style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 8,
-                          background: "rgba(255,255,255,0.08)",
-                        }}
-                      />
-                    )}
+                    <div
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 12,
+                        background: "rgba(255,255,255,0.06)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {r.img && (
+                        <img
+                          src={r.img}
+                          alt={r.name}
+                          loading="lazy"
+                          style={{
+                            maxWidth: "100%",
+                            maxHeight: "100%",
+                            objectFit: "contain",
+                            imageRendering: "auto",
+                          }}
+                        />
+                      )}
+                    </div>
                   </td>
 
                   <td style={{ ...td, color: "#fff" }}>{r.name}</td>
